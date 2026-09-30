@@ -475,6 +475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         alert.accessoryView = field
         alert.addButton(withTitle: T("play"))
+        alert.addButton(withTitle: T("search_button"))
         alert.addButton(withTitle: T("open_file"))
         alert.addButton(withTitle: T("cancel"))
         alert.window.initialFirstResponder = field
@@ -491,6 +492,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 searchYouTube(text)   // 링크가 아니면 검색어로
             }
         case .alertSecondButtonReturn:
+            if !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchYouTube(field.stringValue)
+            } else {
+                promptSearch()
+            }
+        case .alertThirdButtonReturn:
             openFile()
         default:
             break
@@ -537,12 +544,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         req.setValue(Lang.current.rawValue, forHTTPHeaderField: "Accept-Language")
         URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
             let results = parseSearch(String(decoding: data ?? Data(), as: UTF8.self))
-            DispatchQueue.main.async { self?.showResults(results, for: query) }
+            // URLSession 콜백 큐는 하나씩만 처리해서, 여기서 썸네일을 기다리면 응답이 못 들어와요 → 다른 스레드에서
+            DispatchQueue.global().async {
+                let thumbs = loadThumbnails(results)
+                DispatchQueue.main.async { self?.showResults(results, thumbs: thumbs, for: query) }
+            }
         }.resume()
     }
 
     // 결과를 메뉴로: 썸네일 + 제목 + 채널 · 길이. 누르면 재생
-    func showResults(_ results: [SearchResult], for query: String) {
+    func showResults(_ results: [SearchResult], thumbs: [String: NSImage], for query: String) {
         guard !results.isEmpty else { return showMessage(T("no_results")) }
         let menu = NSMenu()
         let header = NSMenuItem(title: "🔍 \(query)", action: nil, keyEquivalent: "")
@@ -557,12 +568,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             t.append(NSAttributedString(string: "\n" + r.meta, attributes: [.font: NSFont.menuFont(ofSize: 11),
                                                                            .foregroundColor: NSColor.secondaryLabelColor]))
             mi.attributedTitle = t
+            mi.image = thumbs[r.id]
             menu.addItem(mi)
-            URLSession.shared.dataTask(with: URL(string: "https://i.ytimg.com/vi/\(r.id)/mqdefault.jpg")!) { data, _, _ in
-                guard let data = data, let img = NSImage(data: data) else { return }
-                img.size = NSSize(width: 96, height: 54)
-                DispatchQueue.main.async { mi.image = img }
-            }.resume()
         }
         NSApp.activate(ignoringOtherApps: true)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
@@ -1270,6 +1277,25 @@ func isNewer(_ a: String, than b: String) -> Bool {
         if l != r { return l > r }
     }
     return false
+}
+
+// 메뉴가 열려 있는 동안엔 이미지를 붙여도 안 보여서, 메뉴를 띄우기 전에 썸네일을 다 받아요 (최대 3초, 메인 스레드 말고 호출)
+func loadThumbnails(_ results: [SearchResult]) -> [String: NSImage] {
+    var thumbs: [String: NSImage] = [:]
+    let lock = NSLock(), group = DispatchGroup()
+    for r in results {
+        group.enter()
+        URLSession.shared.dataTask(with: URL(string: "https://i.ytimg.com/vi/\(r.id)/mqdefault.jpg")!) { d, _, _ in
+            if let d = d, let img = NSImage(data: d) {
+                img.size = NSSize(width: 96, height: 54)
+                lock.lock(); thumbs[r.id] = img; lock.unlock()
+            }
+            group.leave()
+        }.resume()
+    }
+    _ = group.wait(timeout: .now() + 3)
+    lock.lock(); defer { lock.unlock() }
+    return thumbs
 }
 
 // MARK: - 언어

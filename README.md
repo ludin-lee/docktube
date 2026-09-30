@@ -30,7 +30,7 @@ xattr -dr com.apple.quarantine /Applications/DockTube.app
 
 ## How to use
 
-When the app starts, it asks for a YouTube link. If you already have a YouTube link on your clipboard, it's filled in for you. Type anything that isn't a link and DockTube searches YouTube for it.
+When the app starts, it asks for a YouTube link. If you already have a YouTube link on your clipboard, it's filled in for you. Click **Search** (or type anything that isn't a link and click Play) to search YouTube.
 
 | Action | Result |
 | --- | --- |
