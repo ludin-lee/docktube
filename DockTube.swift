@@ -33,6 +33,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         didSet { UserDefaults.standard.set(autoNext, forKey: "autoNext") }
     }
     var autoNextCooldown = Date.distantPast  // 넘긴 직후 또 넘기지 않게
+    var mini: NSPanel!                       // Dock 위에 뜨는 미니 플레이어
+    let miniView = MiniView()
+    let miniTime = NSSlider()                // 미니 플레이어 타임바
+    let miniTimeLabel = NSTextField(labelWithString: "")
+    let miniVolume = NSSlider()
+    var backStack: [String] = []             // 영상 하나 모드에서 "이전 영상"으로 돌아갈 곳
+
+    // 음량 0~1 (앱을 다시 켜도 기억)
+    var volume = UserDefaults.standard.object(forKey: "volume") as? Double ?? 1 {
+        didSet { UserDefaults.standard.set(volume, forKey: "volume") }
+    }
     var loggedIn = false                     // 유튜브 로그인 쿠키가 있는지
     var recentVideos: [String] = []          // 최근 본 영상 (추천이 A→B→A로 돌지 않게)
 
@@ -74,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMainMenu()
         setupWindow()
+        setupMini()
 
         tileView.imageScaling = .scaleProportionallyUpOrDown
         NSApp.dockTile.contentView = tileView
@@ -114,6 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 menu.addItem(auto)
             }
             if source == .youtube && playlist.isEmpty && currentList == nil {
+                if !backStack.isEmpty { menu.addItem(item("⏮ 이전 영상", #selector(prevVideo))) }
+                menu.addItem(item("⏭ 다음 영상", #selector(nextVideo)))
                 let auto = item("자동으로 다음 영상", #selector(toggleAutoNext))
                 auto.state = autoNext ? .on : .off
                 menu.addItem(auto)
@@ -168,6 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let fill = item("아이콘 꽉 채우기", #selector(toggleFill))
         fill.state = fillMode ? .on : .off
         menu.addItem(fill)
+        let miniItem = item("미니 플레이어", #selector(toggleMini))
+        miniItem.state = mini.isVisible ? .on : .off
+        menu.addItem(miniItem)
         let show = item("영상 창 보기", #selector(toggleWindow))
         show.state = windowShown ? .on : .off
         menu.addItem(show)
@@ -203,6 +220,134 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     // MARK: - 숨은 영상 창
+
+    // MARK: - 미니 플레이어
+
+    func setupMini() {
+        mini = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 384, height: 216),
+                       styleMask: [.borderless, .resizable, .nonactivatingPanel], backing: .buffered, defer: false)
+        mini.level = .floating
+        mini.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        mini.isOpaque = false
+        mini.backgroundColor = .clear
+        mini.hasShadow = true
+        mini.isReleasedWhenClosed = false
+        mini.contentAspectRatio = NSSize(width: 16, height: 9)
+        mini.minSize = NSSize(width: 320, height: 180)
+
+        miniView.imageScaling = .scaleProportionallyUpOrDown
+        miniView.wantsLayer = true
+        miniView.layer?.backgroundColor = NSColor.black.cgColor
+        miniView.layer?.cornerRadius = 10
+        miniView.layer?.masksToBounds = true
+        miniView.onDoubleClick = { [weak self] in self?.togglePlay() }
+        miniView.onMenu = { [weak self] in self?.applicationDockMenu(NSApp) }
+        mini.contentView = miniView
+        setupMiniControls()
+
+        // 처음엔 화면 아래 가운데, Dock 바로 위. 옮기거나 크기를 바꾸면 기억해요
+        if !mini.setFrameUsingName("MiniPlayer"), let vf = NSScreen.main?.visibleFrame {
+            mini.setFrameOrigin(NSPoint(x: vf.midX - mini.frame.width / 2, y: vf.minY + 8))
+        }
+        mini.setFrameAutosaveName("MiniPlayer")
+    }
+
+    // 아래쪽 조작 바: 타임바 / ⏮ ⏯ ⏭ / 시간 / 음량. 마우스를 올렸을 때만 보여요
+    func setupMiniControls() {
+        let w = mini.frame.width
+        let bar = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: w, height: 58))
+        bar.material = .hudWindow
+        bar.blendingMode = .withinWindow
+        bar.state = .active
+        bar.appearance = NSAppearance(named: .darkAqua)
+        bar.autoresizingMask = [.width]
+
+        miniTime.frame = NSRect(x: 10, y: 32, width: w - 20, height: 20)
+        miniTime.autoresizingMask = [.width]
+        miniTime.controlSize = .small
+        miniTime.minValue = 0
+        miniTime.maxValue = 1
+        miniTime.isContinuous = false          // 손을 뗄 때 이동
+        miniTime.target = self
+        miniTime.action = #selector(miniSeek(_:))
+        bar.addSubview(miniTime)
+
+        for (i, (symbol, action)) in [("backward.fill", #selector(prevVideo)),
+                                      ("playpause.fill", #selector(togglePlay)),
+                                      ("forward.fill", #selector(nextVideo))].enumerated() {
+            let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil)!, target: self, action: action)
+            b.isBordered = false
+            b.contentTintColor = .white
+            b.frame = NSRect(x: 8 + CGFloat(i) * 30, y: 6, width: 26, height: 22)
+            bar.addSubview(b)
+        }
+
+        miniTimeLabel.frame = NSRect(x: 100, y: 9, width: 110, height: 16)
+        miniTimeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        miniTimeLabel.textColor = .white
+        bar.addSubview(miniTimeLabel)
+
+        let speaker = NSImageView(image: NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: nil)!)
+        speaker.contentTintColor = .white
+        speaker.frame = NSRect(x: w - 112, y: 8, width: 18, height: 18)
+        speaker.autoresizingMask = [.minXMargin]
+        bar.addSubview(speaker)
+
+        miniVolume.frame = NSRect(x: w - 90, y: 8, width: 80, height: 18)
+        miniVolume.autoresizingMask = [.minXMargin]
+        miniVolume.controlSize = .small
+        miniVolume.minValue = 0
+        miniVolume.maxValue = 1
+        miniVolume.doubleValue = volume
+        miniVolume.target = self
+        miniVolume.action = #selector(miniVolumeChanged(_:))
+        bar.addSubview(miniVolume)
+
+        bar.isHidden = true
+        miniView.addSubview(bar)
+
+        // 오른쪽 위 닫기 버튼
+        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "닫기")!,
+                             target: self, action: #selector(toggleMini))
+        close.isBordered = false
+        close.contentTintColor = .white
+        close.imageScaling = .scaleProportionallyUpOrDown
+        close.frame = NSRect(x: w - 30, y: mini.frame.height - 30, width: 22, height: 22)
+        close.autoresizingMask = [.minXMargin, .minYMargin]
+        close.isHidden = true
+        miniView.addSubview(close)
+
+        miniView.onHover = { inside in
+            bar.isHidden = !inside
+            close.isHidden = !inside
+        }
+    }
+
+    func updateMiniControls() {
+        guard mini.isVisible else { return }
+        miniTimeLabel.stringValue = duration > 0 ? "\(timeText(position)) / \(timeText(duration))" : ""
+        miniTime.isEnabled = duration > 0
+        // 타임바를 끌고 있는 동안에는 건드리지 않아요
+        if duration > 0, NSEvent.pressedMouseButtons & 1 == 0 { miniTime.doubleValue = position / duration }
+    }
+
+    @objc func miniSeek(_ s: NSSlider) { seek(to: s.doubleValue * duration) }
+
+    @objc func miniVolumeChanged(_ s: NSSlider) {
+        volume = s.doubleValue
+        switch source {
+        case .youtube: webView.evaluateJavaScript("if (window.player && player.setVolume) player.setVolume(\(Int(volume * 100)))")
+        case .file: player?.volume = Float(volume)
+        case .shorts, .none: break  // 쇼츠는 updateTime이 매번 맞춰요
+        }
+    }
+
+    @objc func toggleMini() { mini.isVisible ? mini.orderOut(nil) : mini.orderFrontRegardless() }
+
+    func showFrame(_ src: NSImage) {
+        setTile(compose(src))
+        if mini.isVisible { miniView.image = src }
+    }
 
     func setupWindow() {
         let rect = NSRect(x: 0, y: 0, width: 640, height: 360)
@@ -370,7 +515,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             playerVars: {\(listVars) autoplay:1, playsinline:1, controls:0, rel:0, fs:0,
                          iv_load_policy:3, disablekb:1, \(captionsOn ? "cc_load_policy:1, cc_lang_pref:'ko'," : "") start:\(start), origin:'\(origin)'},
             events: {
-              onReady: function(e){ if (\(isMuted ? "true" : "false")) e.target.mute(); e.target.playVideo(); },
+              onReady: function(e){ if (\(isMuted ? "true" : "false")) e.target.mute(); e.target.setVolume(\(Int(volume * 100))); e.target.playVideo(); },
               onApiChange: applyCC,
               onStateChange: function(e){
                 if (e.data === 1) applyCC();
@@ -436,7 +581,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let html = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             DispatchQueue.main.async {
                 guard let self = self, self.source == .youtube, self.currentVideoID == id else { return }
-                if let next = self.pickNext(from: html) { self.playYouTube(next) } else { self.replayYouTube() }
+                if let next = self.pickNext(from: html) {
+                    self.backStack = Array((self.backStack + [id]).suffix(50))
+                    self.playYouTube(next)
+                } else { self.replayYouTube() }
             }
         }.resume()
     }
@@ -474,8 +622,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         webView.evaluateJavaScript("dtSetQuality('\(q)')", in: frame, in: .page) { _ in }
     }
 
-    @objc func prevVideo() { source == .shorts ? swipeShorts(down: false) : webView.evaluateJavaScript("player.previousVideo()") }
-    @objc func nextVideo() { source == .shorts ? swipeShorts(down: true) : webView.evaluateJavaScript("player.nextVideo()") }
+    var isSingleVideo: Bool { source == .youtube && currentList == nil }
+
+    @objc func prevVideo() {
+        if source == .shorts { swipeShorts(down: false) }
+        else if isSingleVideo { if let id = backStack.popLast() { playYouTube(id) } }
+        else if source == .youtube { webView.evaluateJavaScript("player.previousVideo()") }
+    }
+
+    @objc func nextVideo() {
+        if source == .shorts { swipeShorts(down: true) }
+        else if isSingleVideo { playNextRelated() }
+        else if source == .youtube { webView.evaluateJavaScript("player.nextVideo()") }
+    }
 
     // MARK: - 쇼츠 (임시): youtube.com/shorts 페이지를 그대로 열어요. 로그인하면 내 추천이 나와요
 
@@ -551,7 +710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard !snapshotInFlight else { return }
         snapshotInFlight = true
         let cfg = WKSnapshotConfiguration()
-        cfg.snapshotWidth = NSNumber(value: 320)
+        cfg.snapshotWidth = NSNumber(value: mini.isVisible ? 720 : 320)  // 미니 플레이어가 켜져 있으면 더 선명하게
         cfg.afterScreenUpdates = false
         if source == .shorts {
             guard shortsRect.width > 10, shortsRect.height > 10 else { snapshotInFlight = false; return }
@@ -561,7 +720,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             guard let self = self else { return }
             self.snapshotInFlight = false
             if self.source == .youtube || self.source == .shorts, let image = image {
-                self.setTile(self.compose(image))
+                self.showFrame(image)
             }
         }
     }
@@ -593,6 +752,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         item.add(out)
         let p = AVPlayer(playerItem: item)
         p.isMuted = isMuted
+        p.volume = Float(volume)
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak p] _ in
             p?.seek(to: .zero)
@@ -619,7 +779,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               let pb = out.copyPixelBuffer(forItemTime: t, itemTimeForDisplay: nil) else { return }
         let ci = CIImage(cvPixelBuffer: pb)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
-        setTile(compose(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))))
+        showFrame(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)))
     }
 
     // MARK: - 조작
@@ -689,7 +849,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .shorts:
             // 시간·길이·영상 영역을 읽고, 음소거 설정도 맞춰요 (다음 쇼츠로 넘어가면 영상이 바뀌니까 매번)
             webView.evaluateJavaScript("""
-            (function(v){ if (!v) return null; v.muted = \(isMuted);
+            (function(v){ if (!v) return null; v.muted = \(isMuted); v.volume = \(volume);
               var r = v.getBoundingClientRect();
               return [v.currentTime, v.duration || 0, r.left, r.top, r.width, r.height]; })(\(Self.shortsVideoJS))
             """) { [weak self] r, _ in
@@ -774,7 +934,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     @objc func tick() {
         tickCount += 1
-        if tickCount % 10 == 0 { updateTime() }  // 재생 시간은 초당 3번이면 충분해요
+        if tickCount % 10 == 0 { updateTime(); updateMiniControls() }  // 재생 시간은 초당 3번이면 충분해요
         // 쿠키 변경 알림은 로그인 때 안 올 때가 있어서, 3초마다 직접 확인해요
         if tickCount % 90 == 1 { refreshLogin() }
         switch source {
@@ -841,6 +1001,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         a.messageText = text
         a.runModal()
     }
+}
+
+// 미니 플레이어 화면: 드래그로 옮기기, 더블클릭 재생/일시정지, 우클릭 메뉴
+final class MiniView: NSImageView {
+    var onDoubleClick: (() -> Void)?
+    var onMenu: (() -> NSMenu?)?
+    var onHover: ((Bool) -> Void)?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover?(true) }
+    override func mouseExited(with event: NSEvent) { onHover?(false) }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 { onDoubleClick?() } else { window?.performDrag(with: event) }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
 }
 
 let app = NSApplication.shared
