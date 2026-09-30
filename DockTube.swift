@@ -35,9 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var autoNextCooldown = Date.distantPast  // 넘긴 직후 또 넘기지 않게
     var mini: NSPanel!                       // Dock 위에 뜨는 미니 플레이어
     let miniView = MiniView()
-    let miniTime = NSSlider()                // 미니 플레이어 타임바
+    let miniControls = NSView()              // 미니 플레이어 위 조작 UI 전체 (스르륵 나타나고 사라져요)
+    let miniBar = SlimBar()                  // 타임바
+    let miniVolume = SlimBar()
     let miniTimeLabel = NSTextField(labelWithString: "")
-    let miniVolume = NSSlider()
+    var miniPlay: PressButton!
+    var miniMute: PressButton!
+    var isPlaying = false
     var backStack: [String] = []             // 영상 하나 모드에서 "이전 영상"으로 돌아갈 곳
 
     // 음량 0~1 (앱을 다시 켜도 기억)
@@ -252,89 +256,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         mini.setFrameAutosaveName("MiniPlayer")
     }
 
-    // 아래쪽 조작 바: 타임바 / ⏮ ⏯ ⏭ / 시간 / 음량. 마우스를 올렸을 때만 보여요
+    // 조작 UI: 위쪽 ✕ / 아래쪽 타임바 · ⏮ ⏯ ⏭ · 시간 · 음량. 마우스를 올리면 스르륵 나타나요
     func setupMiniControls() {
-        let w = mini.frame.width
-        let bar = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: w, height: 58))
-        bar.material = .hudWindow
-        bar.blendingMode = .withinWindow
-        bar.state = .active
-        bar.appearance = NSAppearance(named: .darkAqua)
-        bar.autoresizingMask = [.width]
+        let w = mini.frame.width, h = mini.frame.height
+        miniControls.frame = NSRect(x: 0, y: 0, width: w, height: h)
+        miniControls.autoresizingMask = [.width, .height]
+        miniControls.wantsLayer = true
+        miniControls.alphaValue = 0
+        miniControls.isHidden = true
 
-        miniTime.frame = NSRect(x: 10, y: 32, width: w - 20, height: 20)
-        miniTime.autoresizingMask = [.width]
-        miniTime.controlSize = .small
-        miniTime.minValue = 0
-        miniTime.maxValue = 1
-        miniTime.isContinuous = false          // 손을 뗄 때 이동
-        miniTime.target = self
-        miniTime.action = #selector(miniSeek(_:))
-        bar.addSubview(miniTime)
-
-        for (i, (symbol, action)) in [("backward.fill", #selector(prevVideo)),
-                                      ("playpause.fill", #selector(togglePlay)),
-                                      ("forward.fill", #selector(nextVideo))].enumerated() {
-            let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil)!, target: self, action: action)
-            b.isBordered = false
-            b.contentTintColor = .white
-            b.frame = NSRect(x: 8 + CGFloat(i) * 30, y: 6, width: 26, height: 22)
-            bar.addSubview(b)
+        // 영상이 덜 가려지게, 위아래만 살짝 어둡게
+        func shade(_ height: CGFloat, top: Bool) {
+            let g = CAGradientLayer()
+            g.colors = [NSColor(white: 0, alpha: top ? 0.55 : 0.8).cgColor, NSColor(white: 0, alpha: 0).cgColor]
+            g.startPoint = CGPoint(x: 0.5, y: top ? 1 : 0)
+            g.endPoint = CGPoint(x: 0.5, y: top ? 0 : 1)
+            g.frame = CGRect(x: 0, y: top ? h - height : 0, width: w, height: height)
+            g.autoresizingMask = top ? [.layerWidthSizable, .layerMinYMargin] : [.layerWidthSizable]
+            miniControls.layer?.addSublayer(g)
         }
+        shade(90, top: false)
+        shade(44, top: true)
 
-        miniTimeLabel.frame = NSRect(x: 100, y: 9, width: 110, height: 16)
-        miniTimeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        miniTimeLabel.textColor = .white
-        bar.addSubview(miniTimeLabel)
-
-        let speaker = NSImageView(image: NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: nil)!)
-        speaker.contentTintColor = .white
-        speaker.frame = NSRect(x: w - 112, y: 8, width: 18, height: 18)
-        speaker.autoresizingMask = [.minXMargin]
-        bar.addSubview(speaker)
-
-        miniVolume.frame = NSRect(x: w - 90, y: 8, width: 80, height: 18)
-        miniVolume.autoresizingMask = [.minXMargin]
-        miniVolume.controlSize = .small
-        miniVolume.minValue = 0
-        miniVolume.maxValue = 1
-        miniVolume.doubleValue = volume
-        miniVolume.target = self
-        miniVolume.action = #selector(miniVolumeChanged(_:))
-        bar.addSubview(miniVolume)
-
-        bar.isHidden = true
-        miniView.addSubview(bar)
-
-        // 오른쪽 위 닫기 버튼
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "닫기")!,
-                             target: self, action: #selector(toggleMini))
-        close.isBordered = false
-        close.contentTintColor = .white
-        close.imageScaling = .scaleProportionallyUpOrDown
-        close.frame = NSRect(x: w - 30, y: mini.frame.height - 30, width: 22, height: 22)
+        let close = PressButton(symbol: "xmark", size: 11, target: self, action: #selector(toggleMini))
+        close.frame = NSRect(x: w - 34, y: h - 34, width: 26, height: 26)
         close.autoresizingMask = [.minXMargin, .minYMargin]
-        close.isHidden = true
-        miniView.addSubview(close)
+        miniControls.addSubview(close)
 
-        miniView.onHover = { inside in
-            bar.isHidden = !inside
-            close.isHidden = !inside
+        miniBar.frame = NSRect(x: 8, y: 38, width: w - 16, height: 16)
+        miniBar.autoresizingMask = [.width]
+        miniBar.color = NSColor(calibratedRed: 1, green: 0, blue: 0.2, alpha: 1)
+        miniBar.onChange = { [weak self] v, done in
+            guard let self = self, self.duration > 0 else { return }
+            self.miniTimeLabel.stringValue = "\(self.timeText(v * self.duration)) / \(self.timeText(self.duration))"
+            if done { self.seek(to: v * self.duration) }
         }
+        miniControls.addSubview(miniBar)
+
+        let prev = PressButton(symbol: "backward.fill", size: 13, target: self, action: #selector(prevVideo))
+        miniPlay = PressButton(symbol: "play.fill", size: 17, target: self, action: #selector(togglePlay))
+        let next = PressButton(symbol: "forward.fill", size: 13, target: self, action: #selector(nextVideo))
+        prev.frame = NSRect(x: 8, y: 6, width: 30, height: 30)
+        miniPlay.frame = NSRect(x: 40, y: 4, width: 34, height: 34)
+        next.frame = NSRect(x: 76, y: 6, width: 30, height: 30)
+        [prev, miniPlay!, next].forEach(miniControls.addSubview)
+
+        miniTimeLabel.frame = NSRect(x: 112, y: 13, width: 110, height: 16)
+        miniTimeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        miniTimeLabel.textColor = NSColor(white: 1, alpha: 0.9)
+        miniControls.addSubview(miniTimeLabel)
+
+        miniMute = PressButton(symbol: "speaker.wave.2.fill", size: 12, target: self, action: #selector(toggleMute))
+        miniMute.frame = NSRect(x: w - 112, y: 6, width: 30, height: 30)
+        miniMute.autoresizingMask = [.minXMargin]
+        miniControls.addSubview(miniMute)
+
+        miniVolume.frame = NSRect(x: w - 82, y: 13, width: 72, height: 16)
+        miniVolume.autoresizingMask = [.minXMargin]
+        miniVolume.color = .white
+        miniVolume.value = volume
+        miniVolume.onChange = { [weak self] v, _ in self?.setVolume(v) }
+        miniControls.addSubview(miniVolume)
+
+        miniView.addSubview(miniControls)
+        miniView.onHover = { [weak self] inside in self?.fadeMiniControls(inside) }
+    }
+
+    func fadeMiniControls(_ show: Bool) {
+        if show { miniControls.isHidden = false; updateMiniControls() }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = show ? 0.22 : 0.35
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            miniControls.animator().alphaValue = show ? 1 : 0
+        }, completionHandler: { [weak self] in
+            guard let self = self, !show, self.miniControls.alphaValue == 0 else { return }
+            self.miniControls.isHidden = true   // 안 보일 땐 클릭도 안 받게
+        })
     }
 
     func updateMiniControls() {
         guard mini.isVisible else { return }
+        miniPlay.setSymbol(isPlaying ? "pause.fill" : "play.fill")
+        miniMute.setSymbol(isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+        guard !miniBar.dragging else { return }   // 타임바를 끄는 동안엔 건드리지 않아요
         miniTimeLabel.stringValue = duration > 0 ? "\(timeText(position)) / \(timeText(duration))" : ""
-        miniTime.isEnabled = duration > 0
-        // 타임바를 끌고 있는 동안에는 건드리지 않아요
-        if duration > 0, NSEvent.pressedMouseButtons & 1 == 0 { miniTime.doubleValue = position / duration }
+        miniBar.value = duration > 0 ? position / duration : 0
     }
 
-    @objc func miniSeek(_ s: NSSlider) { seek(to: s.doubleValue * duration) }
-
-    @objc func miniVolumeChanged(_ s: NSSlider) {
-        volume = s.doubleValue
+    func setVolume(_ v: Double) {
+        volume = v
         switch source {
         case .youtube: webView.evaluateJavaScript("if (window.player && player.setVolume) player.setVolume(\(Int(volume * 100)))")
         case .file: player?.volume = Float(volume)
@@ -785,6 +795,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     // MARK: - 조작
 
     @objc func togglePlay() {
+        isPlaying.toggle()      // 버튼 모양은 바로 바꾸고, 실제 상태는 updateTime이 곧 맞춰요
+        updateMiniControls()
         switch source {
         case .youtube:
             webView.evaluateJavaScript("""
@@ -805,6 +817,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     @objc func toggleMute() {
         isMuted.toggle()
+        updateMiniControls()
         switch source {
         case .youtube:
             webView.evaluateJavaScript("if(window.player&&player.mute){ \(isMuted ? "player.mute()" : "player.unMute()") }")
@@ -839,22 +852,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             guard let p = player, let d = p.currentItem?.duration.seconds, d.isFinite else { return }
             position = p.currentTime().seconds
             duration = d
+            isPlaying = p.rate != 0
         case .youtube:
-            webView.evaluateJavaScript("window.player && player.getDuration ? [player.getCurrentTime(), player.getDuration()] : null") { [weak self] r, _ in
+            webView.evaluateJavaScript("window.player && player.getDuration ? [player.getCurrentTime(), player.getDuration(), player.getPlayerState()] : null") { [weak self] r, _ in
                 guard let self = self, self.source == .youtube,
-                      let a = r as? [NSNumber], a.count == 2 else { return }
+                      let a = r as? [NSNumber], a.count == 3 else { return }
                 self.position = a[0].doubleValue
                 self.duration = a[1].doubleValue
+                self.isPlaying = a[2].intValue == 1 || a[2].intValue == 3
             }
         case .shorts:
             // 시간·길이·영상 영역을 읽고, 음소거 설정도 맞춰요 (다음 쇼츠로 넘어가면 영상이 바뀌니까 매번)
             webView.evaluateJavaScript("""
             (function(v){ if (!v) return null; v.muted = \(isMuted); v.volume = \(volume);
               var r = v.getBoundingClientRect();
-              return [v.currentTime, v.duration || 0, r.left, r.top, r.width, r.height]; })(\(Self.shortsVideoJS))
+              return [v.currentTime, v.duration || 0, r.left, r.top, r.width, r.height, v.paused ? 0 : 1]; })(\(Self.shortsVideoJS))
             """) { [weak self] r, _ in
                 guard let self = self, self.source == .shorts,
-                      let a = (r as? [NSNumber])?.map({ $0.doubleValue }), a.count == 6 else { return }
+                      let a = (r as? [NSNumber])?.map({ $0.doubleValue }), a.count == 7 else { return }
+                self.isPlaying = a[6] == 1
                 let prev = self.position
                 self.position = a[0]
                 self.duration = a[1].isFinite ? a[1] : 0
@@ -1024,6 +1040,148 @@ final class MiniView: NSImageView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
+}
+
+// 누르면 쏙 들어갔다 튕겨 나오고, 마우스를 올리면 동그란 배경이 스르륵 생기는 버튼
+final class PressButton: NSButton {
+    private var symbolName = ""
+    private var pointSize: CGFloat = 13
+
+    convenience init(symbol: String, size: CGFloat, target: AnyObject, action: Selector) {
+        self.init(frame: .zero)
+        pointSize = size
+        setSymbol(symbol)
+        self.target = target
+        self.action = action
+        isBordered = false
+        imagePosition = .imageOnly
+        contentTintColor = .white
+        wantsLayer = true
+    }
+
+    func setSymbol(_ name: String) {
+        guard name != symbolName else { return }
+        symbolName = name
+        image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .semibold))
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = bounds.height / 2
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { fadeBackground(to: 0.2) }
+    override func mouseExited(with event: NSEvent) { fadeBackground(to: 0) }
+
+    override func mouseDown(with event: NSEvent) {
+        scale(to: 0.8, spring: false)
+        super.mouseDown(with: event)   // 손을 뗄 때까지 여기서 기다려요
+        scale(to: 1, spring: true)
+    }
+
+    private func fadeBackground(to alpha: CGFloat) {
+        guard let l = layer else { return }
+        let to = NSColor(white: 1, alpha: alpha).cgColor
+        let a = CABasicAnimation(keyPath: "backgroundColor")
+        a.fromValue = l.presentation()?.backgroundColor ?? l.backgroundColor
+        a.toValue = to
+        a.duration = 0.18
+        l.backgroundColor = to
+        l.add(a, forKey: "bg")
+    }
+
+    // 가운데를 기준으로 크기 바꾸기 (뷰 레이어는 기준점이 왼쪽 아래라서 옮겼다 되돌려요)
+    private func scale(to s: CGFloat, spring: Bool) {
+        guard let l = layer else { return }
+        var t = CATransform3DMakeTranslation(bounds.midX, bounds.midY, 0)
+        t = CATransform3DScale(t, s, s, 1)
+        t = CATransform3DTranslate(t, -bounds.midX, -bounds.midY, 0)
+        let a: CABasicAnimation
+        if spring {
+            let sp = CASpringAnimation(keyPath: "transform")
+            sp.damping = 11
+            sp.stiffness = 320
+            sp.duration = sp.settlingDuration
+            a = sp
+        } else {
+            a = CABasicAnimation(keyPath: "transform")
+            a.duration = 0.08
+        }
+        a.fromValue = NSValue(caTransform3D: l.presentation()?.transform ?? l.transform)
+        a.toValue = NSValue(caTransform3D: t)
+        l.transform = t
+        l.add(a, forKey: "press")
+    }
+}
+
+// 얇은 바 슬라이더 (유튜브 타임바 느낌): 마우스를 올리면 두꺼워지고 동그란 손잡이가 스르륵 나와요
+final class SlimBar: NSView {
+    var color: NSColor = .white
+    var value: Double = 0 { didSet { needsDisplay = true } }
+    var onChange: ((Double, Bool) -> Void)?   // (값 0~1, 손을 뗐는지)
+    private(set) var dragging = false
+    @objc dynamic var hover: CGFloat = 0 { didSet { needsDisplay = true } }
+
+    override static func defaultAnimation(forKey key: NSAnimatablePropertyKey) -> Any? {
+        key == "hover" ? CABasicAnimation() : super.defaultAnimation(forKey: key)
+    }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let th = 3 + 2 * hover
+        let track = NSRect(x: 6, y: bounds.midY - th / 2, width: bounds.width - 12, height: th)
+        NSColor(white: 1, alpha: 0.3).setFill()
+        NSBezierPath(roundedRect: track, xRadius: th / 2, yRadius: th / 2).fill()
+        var done = track
+        done.size.width = track.width * CGFloat(min(max(value, 0), 1))
+        color.setFill()
+        NSBezierPath(roundedRect: done, xRadius: th / 2, yRadius: th / 2).fill()
+        if hover > 0.01 {
+            let r = 6 * hover
+            NSBezierPath(ovalIn: NSRect(x: done.maxX - r, y: bounds.midY - r, width: r * 2, height: r * 2)).fill()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { animateHover(1) }
+    override func mouseExited(with event: NSEvent) { if !dragging { animateHover(0) } }
+
+    private func animateHover(_ v: CGFloat) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.18
+            animator().hover = v
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) { dragging = true; track(event, done: false) }
+    override func mouseDragged(with event: NSEvent) { track(event, done: false) }
+    override func mouseUp(with event: NSEvent) {
+        dragging = false
+        track(event, done: true)
+        let p = convert(event.locationInWindow, from: nil)
+        if !bounds.contains(p) { animateHover(0) }
+    }
+
+    private func track(_ event: NSEvent, done: Bool) {
+        let x = convert(event.locationInWindow, from: nil).x
+        value = Double(min(max((x - 6) / (bounds.width - 12), 0), 1))
+        onChange?(value, done)
+    }
 }
 
 let app = NSApplication.shared

@@ -1,97 +1,123 @@
 # DockTube
 
-맥 **Dock 아이콘 안에서** 유튜브 영상이나 영상 파일을 재생하는 작은 macOS 앱이에요.
+**English** | [한국어](README.ko.md)
 
-![DockTube 아이콘](AppIcon.png)
+A tiny macOS app that plays YouTube videos (or your own video files) **right inside your Dock icon**.
 
-## 요구 사항
+![DockTube icon](AppIcon.png)
 
-- macOS 12 (Monterey) 이상
-- Xcode 명령줄 도구 (`swiftc`) — 없으면 먼저 설치:
-  ```bash
-  xcode-select --install
-  ```
+## Download & Install
 
-## 빌드 & 실행
+1. **[Download DockTube.dmg](https://github.com/ludin-lee/docktube/releases/latest/download/DockTube.dmg)**
+2. Open `DockTube.dmg` and drag **DockTube** into your **Applications** folder.
+3. Launch DockTube from Applications.
+
+Requires macOS 12 (Monterey) or later. Works on both Apple Silicon (M1 and later) and Intel Macs.
+
+### If macOS says the app "can't be opened"
+
+DockTube is a free app without an Apple developer signature, so macOS may block it the first time you open it.
+
+1. Click **Done** (or Cancel) on the warning.
+2. Open **System Settings → Privacy & Security**, scroll down, and you'll see a note that "DockTube" was blocked. Click **Open Anyway**.
+3. Open DockTube again and click **Open**. You only need to do this once.
+
+If you're comfortable with Terminal, this one-liner does the same thing:
 
 ```bash
-bash build.sh
-open DockTube.app
+xattr -dr com.apple.quarantine /Applications/DockTube.app
 ```
 
-`DockTube.app`을 `응용 프로그램` 폴더로 옮겨 두면 다른 앱처럼 쓸 수 있어요.
+## How to use
 
-## 사용법
+When the app starts, it asks for a YouTube link. If you already have a YouTube link on your clipboard, it's filled in for you.
 
-앱을 켜면 유튜브 링크 입력 창이 떠요. 클립보드에 유튜브 링크가 있으면 자동으로 채워져요.
-
-| 동작 | 결과 |
+| Action | Result |
 | --- | --- |
-| Dock 아이콘 **클릭** | 재생 / 일시정지 (재생 중인 영상이 없으면 링크 입력 창) |
-| Dock 아이콘 **우클릭** | 메뉴 열기 |
+| **Click** the Dock icon | Play / Pause (opens the link prompt if nothing is playing) |
+| **Right-click** the Dock icon | Open the menu |
 
-### 우클릭 메뉴
+> The app's menus are currently in Korean. Each menu item below is listed as **Korean label** (English meaning).
 
-- **재생 / 일시정지**
-- **음소거**
-- **시간 이동… (현재 / 전체)** — 슬라이더로 원하는 위치를 골라 이동
-- **⏪ 10초 뒤로 / ⏩ 10초 앞으로**
-- **⏮ 이전 영상 / ⏭ 다음 영상** — 재생목록에서는 목록 순서대로, 영상 하나만 틀었을 때는 다음 = 유튜브 추천 영상, 이전 = 방금 보던 영상 (쇼츠 모드에서는 **⏮ 이전 쇼츠 / ⏭ 다음 쇼츠**)
-- **재생목록 (현재/전체)** — 목록에서 영상 제목을 눌러 바로 이동
-- **화질** — `자동` / `최고 화질 고정` / `1080p 고정`, 또는 그 영상이 제공하는 화질(예: 1080p60, 720p) 중에서 골라요. 고른 화질이 없는 영상이면 그 아래에서 가장 좋은 화질로 나와요. 앱을 다시 켜도 기억해요
-- **자막** — 유튜브 자막 켜기/끄기 (기본은 꺼짐). 바꾸면 플레이어를 다시 불러와서 보던 곳부터 이어서 재생해요. 한국어 자막이 있으면 한국어로 나와요
-- **유튜브 링크 열기…**
-- **쇼츠 피드 보기** — 유튜브 쇼츠를 브라우저처럼 넘기면서 봐요 (아래 "쇼츠 모드" 참고)
-- **유튜브 로그인… / 유튜브 로그아웃** — 로그인 안 돼 있으면 영상 창에 구글 로그인 화면을 띄워요. 로그인하면 내 계정 추천 쇼츠가 나와요. 로그인돼 있으면 로그아웃이 보이고, 누르면 앱에 저장된 쿠키·사이트 데이터를 모두 지워요
-- **영상 파일 열기…** — mp4, mov 등 로컬 영상
-- **아이콘 꽉 채우기** — 켜면 아이콘을 꽉 채우고(가장자리 잘림), 끄면 영상 전체가 보여요
-- **미니 플레이어** — Dock 바로 위에 가로로 긴 작은 영상 창을 띄워요. 드래그로 옮기고, 가장자리를 끌어 크기를 바꾸고(16:9 유지), 더블클릭하면 재생/일시정지, 우클릭하면 이 메뉴가 떠요. 위치와 크기는 기억해요
-  - 마우스를 올리면 오른쪽 위에 ✕ 닫기 버튼이 나와요 (다시 켜려면 우클릭 메뉴 → 미니 플레이어)
-  - 마우스를 올리면 아래쪽에 조작 바가 나와요: 타임바(끌어서 이동), ⏮ 이전 / ⏯ 재생·일시정지 / ⏭ 다음, 재생 시간, 음량 슬라이더
-  - 음량은 유튜브·쇼츠·영상 파일 모두 적용되고, 앱을 다시 켜도 기억해요
-- **영상 창 보기** — 숨어 있는 실제 영상 창을 보여줘요. 빨간 닫기 버튼을 누르면 다시 숨어요
+### Right-click menu
 
-### 지원하는 유튜브 주소
+- **재생 / 일시정지** (Play / Pause)
+- **음소거** (Mute)
+- **시간 이동…** (Jump to time…) — pick a position with a slider
+- **⏪ 10초 뒤로 / ⏩ 10초 앞으로** (Back / Forward 10 seconds)
+- **⏮ 이전 영상 / ⏭ 다음 영상** (Previous / Next video) — in a playlist, follows the playlist order; for a single video, *next* plays YouTube's recommended video and *previous* goes back to the one you just watched. In Shorts mode these become **이전 쇼츠 / 다음 쇼츠** (Previous / Next Short)
+- **재생목록** (Playlist) — click any title to jump to it
+- **화질** (Quality) — **자동** (Auto), **최고 화질 고정** (Always best), **1080p 고정** (Always 1080p), or any quality the video offers (e.g. 1080p60, 720p). If a video doesn't have the chosen quality, the best one below it is used. Remembered across restarts
+- **자막** (Subtitles) — turn YouTube subtitles on/off (off by default). The player reloads and resumes where you were. Korean subtitles are preferred when available
+- **유튜브 링크 열기…** (Open YouTube link…)
+- **쇼츠 피드 보기** (Watch Shorts feed) — scroll through YouTube Shorts like in a browser (see *Shorts mode* below)
+- **유튜브 로그인… / 유튜브 로그아웃** (Sign in to YouTube… / Sign out) — shows the Google sign-in page. Once signed in, Shorts are personalized for your account. Signing out clears all cookies and site data stored by the app
+- **영상 파일 열기…** (Open video file…) — local files such as mp4 and mov
+- **아이콘 꽉 채우기** (Fill icon) — on: fill the whole icon (edges cropped); off: show the entire video
+- **미니 플레이어** (Mini player) — a small widescreen player just above the Dock (see below)
+- **영상 창 보기** (Show video window) — reveals the hidden video window. Closing it with the red button hides it again
+
+### Mini player
+
+- Drag to move, drag the edges to resize (keeps 16:9). Position and size are remembered.
+- Double-click to play/pause, right-click for the same menu as the Dock icon.
+- Hover over it and the controls fade in:
+  - **✕** (top right) — close the mini player (reopen it from the right-click menu)
+  - Red **timeline** — grows when you hover; drag to seek
+  - **⏮ ⏯ ⏭** — previous / play-pause / next
+  - **🔊 Volume** — click the speaker to mute, drag the white bar to change volume (applies to YouTube, Shorts and video files; remembered across restarts)
+
+### Supported YouTube links
 
 - `https://www.youtube.com/watch?v=...`
 - `https://youtu.be/...`
-- `https://www.youtube.com/shorts/...`
+- `https://www.youtube.com/shorts/...` (opens in Shorts mode)
 - `.../embed/...`, `.../live/...`
-- 11자리 영상 ID만 넣어도 돼요
-- 재생목록: `https://www.youtube.com/playlist?list=...` — 차례대로 재생돼요. `watch?v=...&list=...`처럼 둘 다 있으면 그 영상부터 시작해요
+- A bare 11-character video ID
+- Playlists: `https://www.youtube.com/playlist?list=...` — plays in order. With both (`watch?v=...&list=...`), it starts from that video
 
-영상 하나만 틀었을 때는 끝나면 유튜브 추천 다음 영상이 자동으로 이어서 나와요. 우클릭 메뉴의 **자동으로 다음 영상**을 끄면 처음부터 반복 재생돼요 (앱을 다시 켜도 기억해요). 재생목록은 마지막 영상이 끝나면 첫 영상으로 돌아가요.
+When a single video ends, YouTube's recommended next video plays automatically. Turn off **자동으로 다음 영상** (Autoplay next video) in the right-click menu to loop the current video instead (remembered across restarts). Playlists go back to the first video after the last one.
 
-### 쇼츠 모드 (임시 기능)
+### Shorts mode (experimental)
 
-`https://www.youtube.com/shorts/...` 링크를 넣거나 **쇼츠 피드 보기**를 누르면, 임베드 플레이어 대신 실제 유튜브 쇼츠 페이지를 열어요.
+Paste a `https://www.youtube.com/shorts/...` link or choose **쇼츠 피드 보기** (Watch Shorts feed), and DockTube opens the real YouTube Shorts page instead of the embedded player.
 
-- **⏭ 다음 쇼츠 / ⏮ 이전 쇼츠**로 브라우저에서 넘기듯 추천 쇼츠를 볼 수 있어요.
-- **자동으로 다음 쇼츠** (기본 켜짐) — 쇼츠가 끝나면 다음 쇼츠로 넘어가요. 끄면 한 쇼츠를 반복해요. 앱을 다시 켜도 기억해요.
-- 한 번 **유튜브 로그인…** 해 두면 앱을 껐다 켜도 로그인이 유지되고, 내 계정 기준 추천이 나와요.
-- 재생/일시정지, 음소거, 시간 이동은 되고, 화질·자막·재생목록 메뉴는 이 모드에서 안 보여요.
+- Use **⏭ 다음 쇼츠 / ⏮ 이전 쇼츠** (Next / Previous Short) to swipe through recommendations like in a browser.
+- **자동으로 다음 쇼츠** (Autoplay next Short, on by default) — moves to the next Short when one ends. Turn it off to loop a single Short. Remembered across restarts.
+- Sign in once with **유튜브 로그인…** and you stay signed in across restarts, with recommendations based on your account.
+- Play/pause, mute and seeking work; the quality, subtitle and playlist menus are hidden in this mode.
 
-## 동작 방식
+## Building from source (for developers)
 
-- 유튜브는 보이지 않는 `WKWebView`에서 IFrame API로 재생하고, 초당 30번 스냅샷을 찍어 Dock 아이콘에 그려요.
-- 영상 파일은 `AVPlayer`로 재생하고 프레임을 직접 꺼내 아이콘에 그려요.
-- 영상 창은 화면 구석에 거의 투명(alpha 0.01)하게 떠 있어요. 완전히 숨기면 macOS가 화면 그리기를 멈춰서 아이콘이 멈추거든요.
+Requires the Xcode Command Line Tools (`xcode-select --install`).
 
-## 파일 구성
+```bash
+bash build.sh        # build DockTube.app (universal: Apple Silicon + Intel)
+bash build.sh dmg    # also create DockTube.dmg for distribution
+open DockTube.app
+```
 
-| 파일 | 설명 |
+### How it works
+
+- YouTube plays in a hidden `WKWebView` via the IFrame API; DockTube takes 30 snapshots per second and draws them onto the Dock icon.
+- Video files play through `AVPlayer`, and frames are pulled directly and drawn onto the icon.
+- The video window sits in a corner of the screen, almost fully transparent (alpha 0.01). If it were fully hidden, macOS would stop rendering it and the icon would freeze.
+
+### Files
+
+| File | Description |
 | --- | --- |
-| `DockTube.swift` | 앱 전체 소스 (단일 파일) |
-| `build.sh` | `.app` 번들을 만드는 빌드 스크립트 |
-| `AppIcon.icns` / `AppIcon.png` | 앱 아이콘 (재생 전 Dock에 표시) |
+| `DockTube.swift` | The entire app (single file) |
+| `build.sh` | Builds the `.app` bundle and the distributable `.dmg` |
+| `AppIcon.icns` / `AppIcon.png` | App icon (shown in the Dock before playback) |
 
-## 알려진 제약
+## Known limitations
 
-- 유튜브 재생에는 인터넷 연결이 필요해요.
-- 임베드가 막힌 유튜브 영상은 재생되지 않아요.
-- 믹스(`list=RD...`)나 비공개 재생목록은 재생되지 않을 수 있어요. 아주 긴 재생목록은 앞부분만 보일 수 있어요.
-- 화질은 유튜브 공식 API가 아닌 플레이어 내부 기능으로 바꿔요. 유튜브가 바꾸면 화질 메뉴가 안 보이거나 안 먹힐 수 있어요. Dock 아이콘은 작아서 화질 차이가 거의 안 보이고, 주로 "영상 창 보기"와 데이터 사용량에 영향이 있어요.
-- 자막은 유튜브만 지원해요. 자막이 없는 영상에서는 켜도 아무것도 안 나와요. 아이콘이 작아서 글자는 작게 보여요.
-- 자동 다음 영상은 유튜브 영상 페이지에서 "자동재생 다음 영상"을 읽어 와요. 유튜브가 페이지 형식을 바꾸면 못 찾을 수 있고, 그땐 처음부터 반복 재생돼요. 로그인과 상관없는 일반 추천이에요.
-- 쇼츠 모드는 유튜브 웹페이지를 직접 다뤄서, 유튜브가 페이지를 바꾸면 넘기기가 안 될 수 있어요. 영상 위 제목 같은 글자가 아이콘에 같이 찍힐 수 있고, 구글이 앱 안 로그인을 막을 수도 있어요.
-- 서명되지 않은 로컬 빌드라 다른 맥에서 처음 열 때 "확인되지 않은 개발자" 경고가 뜰 수 있어요. 우클릭 → **열기**로 실행하세요.
+- YouTube playback requires an internet connection.
+- Videos whose owners disabled embedding won't play.
+- Mixes (`list=RD...`) and private playlists may not play. Very long playlists may only show the first part.
+- Quality switching uses the player's internal functions, not YouTube's official API, so it may stop working if YouTube changes things. The Dock icon is small, so quality mostly matters for the mini player, the video window and data usage.
+- Subtitles are YouTube-only. Nothing appears for videos without subtitles.
+- Autoplay-next reads the "up next" video from the YouTube watch page. If YouTube changes the page format it may not find one, and the video loops instead. These recommendations are generic, not tied to your account.
+- Shorts mode works with the YouTube web page directly, so swiping may break if YouTube changes the page. Text overlaid on the video (like the title) may show up in the icon, and Google may block signing in from inside the app.
+- The app's menus are Korean only for now.
