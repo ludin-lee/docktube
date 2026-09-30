@@ -113,33 +113,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         if source != .none {
-            menu.addItem(item("재생 / 일시정지", #selector(togglePlay)))
-            let mute = item("음소거", #selector(toggleMute))
+            menu.addItem(item(T("play_pause"), #selector(togglePlay)))
+            let mute = item(T("mute"), #selector(toggleMute))
             mute.state = isMuted ? .on : .off
             menu.addItem(mute)
             if duration > 0 {
-                menu.addItem(item("시간 이동… (\(timeText(position)) / \(timeText(duration)))", #selector(promptSeek)))
-                menu.addItem(item("⏪ 10초 뒤로", #selector(seekBack)))
-                menu.addItem(item("⏩ 10초 앞으로", #selector(seekForward)))
+                menu.addItem(item("\(T("jump")) (\(timeText(position)) / \(timeText(duration)))", #selector(promptSeek)))
+                menu.addItem(item(T("back10"), #selector(seekBack)))
+                menu.addItem(item(T("fwd10"), #selector(seekForward)))
             }
             if source == .shorts {
-                menu.addItem(item("⏮ 이전 쇼츠", #selector(prevVideo)))
-                menu.addItem(item("⏭ 다음 쇼츠", #selector(nextVideo)))
-                let auto = item("자동으로 다음 쇼츠", #selector(toggleAutoNext))
+                menu.addItem(item(T("prev_short"), #selector(prevVideo)))
+                menu.addItem(item(T("next_short"), #selector(nextVideo)))
+                let auto = item(T("auto_short"), #selector(toggleAutoNext))
                 auto.state = autoNext ? .on : .off
                 menu.addItem(auto)
             }
             if source == .youtube && playlist.isEmpty && currentList == nil {
-                if !backStack.isEmpty { menu.addItem(item("⏮ 이전 영상", #selector(prevVideo))) }
-                menu.addItem(item("⏭ 다음 영상", #selector(nextVideo)))
-                let auto = item("자동으로 다음 영상", #selector(toggleAutoNext))
+                if !backStack.isEmpty { menu.addItem(item(T("prev_video"), #selector(prevVideo))) }
+                menu.addItem(item(T("next_video"), #selector(nextVideo)))
+                let auto = item(T("auto_video"), #selector(toggleAutoNext))
                 auto.state = autoNext ? .on : .off
                 menu.addItem(auto)
             }
             if !playlist.isEmpty {
-                menu.addItem(item("⏮ 이전 영상", #selector(prevVideo)))
-                menu.addItem(item("⏭ 다음 영상", #selector(nextVideo)))
-                let plItem = NSMenuItem(title: "재생목록 (\(playlistIndex + 1)/\(playlist.count))", action: nil, keyEquivalent: "")
+                menu.addItem(item(T("prev_video"), #selector(prevVideo)))
+                menu.addItem(item(T("next_video"), #selector(nextVideo)))
+                let plItem = NSMenuItem(title: "\(T("playlist")) (\(playlistIndex + 1)/\(playlist.count))", action: nil, keyEquivalent: "")
                 let pl = NSMenu()
                 for (i, id) in playlist.enumerated() {
                     let title = titles[id].flatMap { $0.isEmpty ? nil : $0 } ?? id
@@ -152,9 +152,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 menu.addItem(plItem)
             }
             if !qualities.isEmpty {
-                let qItem = NSMenuItem(title: "화질", action: nil, keyEquivalent: "")
+                let qItem = NSMenuItem(title: T("quality"), action: nil, keyEquivalent: "")
                 let qm = NSMenu()
-                for (q, label) in [("auto", "자동"), ("highres", "최고 화질 고정"), ("hd1080", "1080p 고정")] {
+                for (q, label) in [("auto", T("q_auto")), ("highres", T("q_best")), ("hd1080", T("q_1080"))] {
                     let mi = item(label, #selector(setQuality(_:)))
                     mi.representedObject = q
                     mi.state = q == (wantQuality ?? "auto") ? .on : .off
@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 }
                 qm.addItem(.separator())
                 for (q, label) in qualities where q != "auto" {
-                    let mi = item(q == currentQuality ? "\(label) (현재)" : label, #selector(setQuality(_:)))
+                    let mi = item(q == currentQuality ? "\(label) (\(T("current")))" : label, #selector(setQuality(_:)))
                     mi.representedObject = q
                     mi.state = q == wantQuality ? .on : .off
                     qm.addItem(mi)
@@ -171,28 +171,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 menu.addItem(qItem)
             }
             if source == .youtube {
-                let cc = item("자막", #selector(toggleCaptions))
+                let cc = item(T("subtitles"), #selector(toggleCaptions))
                 cc.state = captionsOn ? .on : .off
                 menu.addItem(cc)
             }
             menu.addItem(.separator())
         }
-        menu.addItem(item("유튜브 링크 열기…", #selector(promptYouTube)))
-        menu.addItem(item("쇼츠 피드 보기", #selector(openShortsFeed)))
-        menu.addItem(loggedIn ? item("유튜브 로그아웃", #selector(logoutYouTube))
-                              : item("유튜브 로그인…", #selector(loginYouTube)))
-        menu.addItem(item("영상 파일 열기…", #selector(openFile)))
+        menu.addItem(item(T("open_link"), #selector(promptYouTube)))
+        menu.addItem(item(T("shorts_feed"), #selector(openShortsFeed)))
+        menu.addItem(loggedIn ? item(T("logout"), #selector(logoutYouTube))
+                              : item(T("login"), #selector(loginYouTube)))
+        menu.addItem(item(T("open_file"), #selector(openFile)))
         menu.addItem(.separator())
-        let fill = item("아이콘 꽉 채우기", #selector(toggleFill))
+        let fill = item(T("fill"), #selector(toggleFill))
         fill.state = fillMode ? .on : .off
         menu.addItem(fill)
-        let miniItem = item("미니 플레이어", #selector(toggleMini))
+        let miniItem = item(T("mini"), #selector(toggleMini))
         miniItem.state = mini.isVisible ? .on : .off
         menu.addItem(miniItem)
-        let show = item("영상 창 보기", #selector(toggleWindow))
+        let show = item(T("show_window"), #selector(toggleWindow))
         show.state = windowShown ? .on : .off
         menu.addItem(show)
+        menu.addItem(.separator())
+        // 어느 언어에서도 찾을 수 있게 제목은 항상 "Language"
+        let langItem = NSMenuItem(title: "🌐 Language", action: nil, keyEquivalent: "")
+        let lm = NSMenu()
+        for (code, name) in [("", T("lang_auto"))] + Lang.allCases.map({ ($0.rawValue, $0.name) }) {
+            let mi = item(name, #selector(setLanguage(_:)))
+            mi.representedObject = code
+            mi.state = code == (Lang.chosen?.rawValue ?? "") ? .on : .off
+            lm.addItem(mi)
+        }
+        langItem.submenu = lm
+        menu.addItem(langItem)
         return menu
+    }
+
+    @objc func setLanguage(_ sender: NSMenuItem) {
+        Lang.chosen = Lang(rawValue: sender.representedObject as? String ?? "")
+        setupMainMenu()   // 위쪽 메뉴 막대도 새 언어로
     }
 
     func item(_ title: String, _ action: Selector) -> NSMenuItem {
@@ -207,16 +224,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(NSMenuItem(title: "DockTube 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(title: T("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
-        let editMenu = NSMenu(title: "편집")
-        editMenu.addItem(NSMenuItem(title: "잘라내기", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
-        editMenu.addItem(NSMenuItem(title: "복사", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
-        editMenu.addItem(NSMenuItem(title: "붙여넣기", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
-        editMenu.addItem(NSMenuItem(title: "전체 선택", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        let editMenu = NSMenu(title: T("edit"))
+        editMenu.addItem(NSMenuItem(title: T("cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: T("copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: T("paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: T("select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
         editItem.submenu = editMenu
         main.addItem(editItem)
 
@@ -436,19 +453,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     @objc func promptYouTube() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "유튜브 링크를 붙여넣으세요"
-        alert.informativeText = "Dock 아이콘에서 영상이 재생돼요. 아이콘을 클릭하면 재생/일시정지, 우클릭하면 메뉴가 나와요."
+        alert.messageText = T("prompt_title")
+        alert.informativeText = T("prompt_info")
 
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-        field.placeholderString = "영상 또는 재생목록 링크 (…watch?v=… / …playlist?list=…)"
+        field.placeholderString = T("prompt_placeholder")
         if let clip = NSPasteboard.general.string(forType: .string),
            videoID(from: clip) != nil || playlistID(from: clip) != nil {
             field.stringValue = clip
         }
         alert.accessoryView = field
-        alert.addButton(withTitle: "재생")
-        alert.addButton(withTitle: "영상 파일 열기…")
-        alert.addButton(withTitle: "취소")
+        alert.addButton(withTitle: T("play"))
+        alert.addButton(withTitle: T("open_file"))
+        alert.addButton(withTitle: T("cancel"))
         alert.window.initialFirstResponder = field
 
         switch alert.runModal() {
@@ -460,7 +477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             } else if id != nil || list != nil {
                 playYouTube(id, list: list)
             } else {
-                showMessage("유튜브 링크를 인식하지 못했어요. 주소를 다시 확인해 주세요.")
+                showMessage(T("bad_link"))
             }
         case .alertSecondButtonReturn:
             openFile()
@@ -523,7 +540,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
           player = new YT.Player('p', {
             \(videoVar) width: '100%', height: '100%',
             playerVars: {\(listVars) autoplay:1, playsinline:1, controls:0, rel:0, fs:0,
-                         iv_load_policy:3, disablekb:1, \(captionsOn ? "cc_load_policy:1, cc_lang_pref:'ko'," : "") start:\(start), origin:'\(origin)'},
+                         iv_load_policy:3, disablekb:1, \(captionsOn ? "cc_load_policy:1, cc_lang_pref:'\(Lang.current.rawValue)'," : "") start:\(start), origin:'\(origin)'},
             events: {
               onReady: function(e){ if (\(isMuted ? "true" : "false")) e.target.mute(); e.target.setVolume(\(Int(volume * 100))); e.target.playVideo(); },
               onApiChange: applyCC,
@@ -907,8 +924,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard duration > 0 else { return }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "시간 이동"
-        alert.informativeText = "슬라이더를 옮긴 뒤 이동을 누르세요."
+        alert.messageText = T("seek_title")
+        alert.informativeText = T("seek_info")
 
         let v = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 46))
         let slider = NSSlider(value: position, minValue: 0, maxValue: duration,
@@ -924,8 +941,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         seekSliderMoved(slider)
 
         alert.accessoryView = v
-        alert.addButton(withTitle: "이동")
-        alert.addButton(withTitle: "취소")
+        alert.addButton(withTitle: T("go"))
+        alert.addButton(withTitle: T("cancel"))
         if alert.runModal() == .alertFirstButtonReturn { seek(to: slider.doubleValue) }
         seekLabel = nil
     }
@@ -1040,6 +1057,84 @@ final class MiniView: NSImageView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
+}
+
+// MARK: - 언어
+
+enum Lang: String, CaseIterable {
+    case ko, en, ja, zh, es
+
+    var name: String { ["한국어", "English", "日本語", "中文", "Español"][Self.allCases.firstIndex(of: self)!] }
+
+    // 사용자가 고른 언어 (nil = 맥 언어 설정 따르기)
+    static var chosen: Lang? {
+        get { UserDefaults.standard.string(forKey: "lang").flatMap(Lang.init) }
+        set { UserDefaults.standard.set(newValue?.rawValue, forKey: "lang") }
+    }
+
+    static var current: Lang {
+        chosen ?? Lang(rawValue: String((Locale.preferredLanguages.first ?? "en").prefix(2))) ?? .en
+    }
+}
+
+// 번역표: 한국어, English, 日本語, 中文, Español 순서
+let strings: [String: [String]] = [
+    "play_pause": ["재생 / 일시정지", "Play / Pause", "再生 / 一時停止", "播放 / 暂停", "Reproducir / Pausa"],
+    "mute": ["음소거", "Mute", "ミュート", "静音", "Silenciar"],
+    "jump": ["시간 이동…", "Jump to Time…", "時間を移動…", "跳转到时间…", "Ir a un momento…"],
+    "back10": ["⏪ 10초 뒤로", "⏪ Back 10 Seconds", "⏪ 10秒戻る", "⏪ 后退 10 秒", "⏪ Retroceder 10 s"],
+    "fwd10": ["⏩ 10초 앞으로", "⏩ Forward 10 Seconds", "⏩ 10秒進む", "⏩ 前进 10 秒", "⏩ Avanzar 10 s"],
+    "prev_short": ["⏮ 이전 쇼츠", "⏮ Previous Short", "⏮ 前のショート", "⏮ 上一个短视频", "⏮ Short anterior"],
+    "next_short": ["⏭ 다음 쇼츠", "⏭ Next Short", "⏭ 次のショート", "⏭ 下一个短视频", "⏭ Siguiente Short"],
+    "auto_short": ["자동으로 다음 쇼츠", "Autoplay Next Short", "次のショートを自動再生", "自动播放下一个短视频", "Reproducir el siguiente Short automáticamente"],
+    "prev_video": ["⏮ 이전 영상", "⏮ Previous Video", "⏮ 前の動画", "⏮ 上一个视频", "⏮ Video anterior"],
+    "next_video": ["⏭ 다음 영상", "⏭ Next Video", "⏭ 次の動画", "⏭ 下一个视频", "⏭ Siguiente video"],
+    "auto_video": ["자동으로 다음 영상", "Autoplay Next Video", "次の動画を自動再生", "自动播放下一个视频", "Reproducir el siguiente video automáticamente"],
+    "playlist": ["재생목록", "Playlist", "再生リスト", "播放列表", "Lista de reproducción"],
+    "quality": ["화질", "Quality", "画質", "画质", "Calidad"],
+    "q_auto": ["자동", "Auto", "自動", "自动", "Automática"],
+    "q_best": ["최고 화질 고정", "Always Best", "常に最高画質", "始终最高画质", "Siempre la mejor"],
+    "q_1080": ["1080p 고정", "Always 1080p", "常に1080p", "始终 1080p", "Siempre 1080p"],
+    "current": ["현재", "current", "現在", "当前", "actual"],
+    "subtitles": ["자막", "Subtitles", "字幕", "字幕", "Subtítulos"],
+    "open_link": ["유튜브 링크 열기…", "Open YouTube Link…", "YouTubeのリンクを開く…", "打开 YouTube 链接…", "Abrir enlace de YouTube…"],
+    "shorts_feed": ["쇼츠 피드 보기", "Watch Shorts Feed", "ショートフィードを見る", "观看 Shorts 短视频", "Ver feed de Shorts"],
+    "login": ["유튜브 로그인…", "Sign In to YouTube…", "YouTubeにログイン…", "登录 YouTube…", "Iniciar sesión en YouTube…"],
+    "logout": ["유튜브 로그아웃", "Sign Out of YouTube", "YouTubeからログアウト", "退出 YouTube 登录", "Cerrar sesión de YouTube"],
+    "open_file": ["영상 파일 열기…", "Open Video File…", "動画ファイルを開く…", "打开视频文件…", "Abrir archivo de video…"],
+    "fill": ["아이콘 꽉 채우기", "Fill Icon", "アイコンいっぱいに表示", "填满图标", "Llenar el icono"],
+    "mini": ["미니 플레이어", "Mini Player", "ミニプレーヤー", "迷你播放器", "Minirreproductor"],
+    "show_window": ["영상 창 보기", "Show Video Window", "動画ウインドウを表示", "显示视频窗口", "Mostrar ventana de video"],
+    "lang_auto": ["자동 (시스템 언어)", "Auto (System Language)", "自動（システム言語）", "自动（系统语言）", "Automático (idioma del sistema)"],
+    "quit": ["DockTube 종료", "Quit DockTube", "DockTubeを終了", "退出 DockTube", "Salir de DockTube"],
+    "edit": ["편집", "Edit", "編集", "编辑", "Editar"],
+    "cut": ["잘라내기", "Cut", "カット", "剪切", "Cortar"],
+    "copy": ["복사", "Copy", "コピー", "拷贝", "Copiar"],
+    "paste": ["붙여넣기", "Paste", "ペースト", "粘贴", "Pegar"],
+    "select_all": ["전체 선택", "Select All", "すべてを選択", "全选", "Seleccionar todo"],
+    "prompt_title": ["유튜브 링크를 붙여넣으세요", "Paste a YouTube link", "YouTubeのリンクを貼り付けてください", "粘贴 YouTube 链接", "Pega un enlace de YouTube"],
+    "prompt_info": ["Dock 아이콘에서 영상이 재생돼요. 아이콘을 클릭하면 재생/일시정지, 우클릭하면 메뉴가 나와요.",
+                    "The video plays inside the Dock icon. Click the icon to play/pause, right-click for the menu.",
+                    "動画はDockアイコンの中で再生されます。クリックで再生/一時停止、右クリックでメニューが開きます。",
+                    "视频会在程序坞图标中播放。点按图标可播放/暂停，右键点按可打开菜单。",
+                    "El video se reproduce dentro del icono del Dock. Haz clic para reproducir/pausar y clic derecho para ver el menú."],
+    "prompt_placeholder": ["영상 또는 재생목록 링크 (…watch?v=… / …playlist?list=…)", "Video or playlist link (…watch?v=… / …playlist?list=…)",
+                           "動画または再生リストのリンク（…watch?v=… / …playlist?list=…）", "视频或播放列表链接（…watch?v=… / …playlist?list=…）",
+                           "Enlace de video o lista (…watch?v=… / …playlist?list=…)"],
+    "play": ["재생", "Play", "再生", "播放", "Reproducir"],
+    "cancel": ["취소", "Cancel", "キャンセル", "取消", "Cancelar"],
+    "bad_link": ["유튜브 링크를 인식하지 못했어요. 주소를 다시 확인해 주세요.", "Couldn't recognize that YouTube link. Please check the address.",
+                 "YouTubeのリンクを認識できませんでした。アドレスを確認してください。", "无法识别该 YouTube 链接，请检查地址。",
+                 "No se reconoció el enlace de YouTube. Revisa la dirección."],
+    "seek_title": ["시간 이동", "Jump to Time", "時間を移動", "跳转到时间", "Ir a un momento"],
+    "seek_info": ["슬라이더를 옮긴 뒤 이동을 누르세요.", "Move the slider, then click Go.", "スライダーを動かして「移動」を押してください。",
+                  "拖动滑块，然后点按“跳转”。", "Mueve el control deslizante y pulsa Ir."],
+    "go": ["이동", "Go", "移動", "跳转", "Ir"],
+]
+
+func T(_ key: String) -> String {
+    guard let row = strings[key] else { return key }
+    return row[Lang.allCases.firstIndex(of: Lang.current)!]
 }
 
 // 누르면 쏙 들어갔다 튕겨 나오고, 마우스를 올리면 동그란 배경이 스르륵 생기는 버튼

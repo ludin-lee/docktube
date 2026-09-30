@@ -37,25 +37,26 @@ When the app starts, it asks for a YouTube link. If you already have a YouTube l
 | **Click** the Dock icon | Play / Pause (opens the link prompt if nothing is playing) |
 | **Right-click** the Dock icon | Open the menu |
 
-> The app's menus are currently in Korean. Each menu item below is listed as **Korean label** (English meaning).
+> The app is available in **English, 한국어, 日本語, 中文 and Español**. It follows your Mac's language by default; change it anytime from **🌐 Language** in the right-click menu.
 
 ### Right-click menu
 
-- **재생 / 일시정지** (Play / Pause)
-- **음소거** (Mute)
-- **시간 이동…** (Jump to time…) — pick a position with a slider
-- **⏪ 10초 뒤로 / ⏩ 10초 앞으로** (Back / Forward 10 seconds)
-- **⏮ 이전 영상 / ⏭ 다음 영상** (Previous / Next video) — in a playlist, follows the playlist order; for a single video, *next* plays YouTube's recommended video and *previous* goes back to the one you just watched. In Shorts mode these become **이전 쇼츠 / 다음 쇼츠** (Previous / Next Short)
-- **재생목록** (Playlist) — click any title to jump to it
-- **화질** (Quality) — **자동** (Auto), **최고 화질 고정** (Always best), **1080p 고정** (Always 1080p), or any quality the video offers (e.g. 1080p60, 720p). If a video doesn't have the chosen quality, the best one below it is used. Remembered across restarts
-- **자막** (Subtitles) — turn YouTube subtitles on/off (off by default). The player reloads and resumes where you were. Korean subtitles are preferred when available
-- **유튜브 링크 열기…** (Open YouTube link…)
-- **쇼츠 피드 보기** (Watch Shorts feed) — scroll through YouTube Shorts like in a browser (see *Shorts mode* below)
-- **유튜브 로그인… / 유튜브 로그아웃** (Sign in to YouTube… / Sign out) — shows the Google sign-in page. Once signed in, Shorts are personalized for your account. Signing out clears all cookies and site data stored by the app
-- **영상 파일 열기…** (Open video file…) — local files such as mp4 and mov
-- **아이콘 꽉 채우기** (Fill icon) — on: fill the whole icon (edges cropped); off: show the entire video
-- **미니 플레이어** (Mini player) — a small widescreen player just above the Dock (see below)
-- **영상 창 보기** (Show video window) — reveals the hidden video window. Closing it with the red button hides it again
+- **Play / Pause**
+- **Mute**
+- **Jump to Time…** — pick a position with a slider
+- **⏪ Back 10 Seconds / ⏩ Forward 10 Seconds**
+- **⏮ Previous Video / ⏭ Next Video** — in a playlist, follows the playlist order; for a single video, *next* plays YouTube's recommended video and *previous* goes back to the one you just watched. In Shorts mode these become **Previous Short / Next Short**
+- **Playlist** — click any title to jump to it
+- **Quality** — **Auto**, **Always Best**, **Always 1080p**, or any quality the video offers (e.g. 1080p60, 720p). If a video doesn't have the chosen quality, the best one below it is used. Remembered across restarts
+- **Subtitles** — turn YouTube subtitles on/off (off by default). The player reloads and resumes where you were. Subtitles in the app's language are preferred when available
+- **Open YouTube Link…**
+- **Watch Shorts Feed** — scroll through YouTube Shorts like in a browser (see *Shorts mode* below)
+- **Sign In to YouTube… / Sign Out of YouTube** — shows the Google sign-in page. Once signed in, Shorts are personalized for your account. Signing out clears all cookies and site data stored by the app
+- **Open Video File…** — local files such as mp4 and mov
+- **Fill Icon** — on: fill the whole icon (edges cropped); off: show the entire video
+- **Mini Player** — a small widescreen player just above the Dock (see below)
+- **Show Video Window** — reveals the hidden video window. Closing it with the red button hides it again
+- **🌐 Language** — Auto (System Language), 한국어, English, 日本語, 中文, Español. Remembered across restarts
 
 ### Mini player
 
@@ -76,15 +77,15 @@ When the app starts, it asks for a YouTube link. If you already have a YouTube l
 - A bare 11-character video ID
 - Playlists: `https://www.youtube.com/playlist?list=...` — plays in order. With both (`watch?v=...&list=...`), it starts from that video
 
-When a single video ends, YouTube's recommended next video plays automatically. Turn off **자동으로 다음 영상** (Autoplay next video) in the right-click menu to loop the current video instead (remembered across restarts). Playlists go back to the first video after the last one.
+When a single video ends, YouTube's recommended next video plays automatically. Turn off **Autoplay Next Video** in the right-click menu to loop the current video instead (remembered across restarts). Playlists go back to the first video after the last one.
 
 ### Shorts mode (experimental)
 
-Paste a `https://www.youtube.com/shorts/...` link or choose **쇼츠 피드 보기** (Watch Shorts feed), and DockTube opens the real YouTube Shorts page instead of the embedded player.
+Paste a `https://www.youtube.com/shorts/...` link or choose **Watch Shorts Feed**, and DockTube opens the real YouTube Shorts page instead of the embedded player.
 
-- Use **⏭ 다음 쇼츠 / ⏮ 이전 쇼츠** (Next / Previous Short) to swipe through recommendations like in a browser.
-- **자동으로 다음 쇼츠** (Autoplay next Short, on by default) — moves to the next Short when one ends. Turn it off to loop a single Short. Remembered across restarts.
-- Sign in once with **유튜브 로그인…** and you stay signed in across restarts, with recommendations based on your account.
+- Use **⏭ Next Short / ⏮ Previous Short** to swipe through recommendations like in a browser.
+- **Autoplay Next Short** (on by default) — moves to the next Short when one ends. Turn it off to loop a single Short. Remembered across restarts.
+- Sign in once with **Sign In to YouTube…** and you stay signed in across restarts, with recommendations based on your account.
 - Play/pause, mute and seeking work; the quality, subtitle and playlist menus are hidden in this mode.
 
 ## Building from source (for developers)
@@ -120,4 +121,3 @@ open DockTube.app
 - Subtitles are YouTube-only. Nothing appears for videos without subtitles.
 - Autoplay-next reads the "up next" video from the YouTube watch page. If YouTube changes the page format it may not find one, and the video loops instead. These recommendations are generic, not tied to your account.
 - Shorts mode works with the YouTube web page directly, so swiping may break if YouTube changes the page. Text overlaid on the video (like the title) may show up in the icon, and Google may block signing in from inside the app.
-- The app's menus are Korean only for now.
