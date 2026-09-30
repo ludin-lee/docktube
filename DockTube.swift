@@ -99,6 +99,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { self.promptYouTube() }
+
+        // 자동 업데이트: 켜고 10초 뒤, 그 뒤로 하루에 한 번
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { if self.autoUpdate { self.checkForUpdate(manual: false) } }
+        Timer.scheduledTimer(withTimeInterval: 24 * 3600, repeats: true) { [weak self] _ in
+            if self?.autoUpdate == true { self?.checkForUpdate(manual: false) }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -178,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             menu.addItem(.separator())
         }
         menu.addItem(item(T("open_link"), #selector(promptYouTube)))
+        menu.addItem(item(T("search"), #selector(promptSearch)))
         menu.addItem(item(T("shorts_feed"), #selector(openShortsFeed)))
         menu.addItem(loggedIn ? item(T("logout"), #selector(logoutYouTube))
                               : item(T("login"), #selector(loginYouTube)))
@@ -204,6 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         langItem.submenu = lm
         menu.addItem(langItem)
+        menu.addItem(item("\(T("update_check")) (v\(appVersion))", #selector(checkForUpdateManually)))
+        let au = item(T("auto_update"), #selector(toggleAutoUpdate))
+        au.state = autoUpdate ? .on : .off
+        menu.addItem(au)
         return menu
     }
 
@@ -476,8 +487,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 playShorts(id)
             } else if id != nil || list != nil {
                 playYouTube(id, list: list)
-            } else {
-                showMessage(T("bad_link"))
+            } else if !text.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchYouTube(text)   // 링크가 아니면 검색어로
             }
         case .alertSecondButtonReturn:
             openFile()
@@ -490,7 +501,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let patterns = [
             #"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})"#,
-            #"^([A-Za-z0-9_-]{11})$"#
+            #"^(?=.*[0-9_-])([A-Za-z0-9_-]{11})$"#
         ]
         for p in patterns {
             guard let re = try? NSRegularExpression(pattern: p),
@@ -499,6 +510,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return String(t[r])
         }
         return nil
+    }
+
+    // MARK: - 검색 (API 키 없이 유튜브 검색 결과 페이지를 읽어요)
+
+    @objc func promptSearch() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = T("search_title")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+        field.placeholderString = T("search_placeholder")
+        alert.accessoryView = field
+        alert.addButton(withTitle: T("search_button"))
+        alert.addButton(withTitle: T("cancel"))
+        alert.window.initialFirstResponder = field
+        if alert.runModal() == .alertFirstButtonReturn, !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            searchYouTube(field.stringValue)
+        }
+    }
+
+    func searchYouTube(_ query: String) {
+        var c = URLComponents(string: "https://www.youtube.com/results")!
+        c.queryItems = [URLQueryItem(name: "search_query", value: query)]
+        var req = URLRequest(url: c.url!)
+        req.setValue(webView.customUserAgent, forHTTPHeaderField: "User-Agent")
+        req.setValue(Lang.current.rawValue, forHTTPHeaderField: "Accept-Language")
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+            let results = parseSearch(String(decoding: data ?? Data(), as: UTF8.self))
+            DispatchQueue.main.async { self?.showResults(results, for: query) }
+        }.resume()
+    }
+
+    // 결과를 메뉴로: 썸네일 + 제목 + 채널 · 길이. 누르면 재생
+    func showResults(_ results: [SearchResult], for query: String) {
+        guard !results.isEmpty else { return showMessage(T("no_results")) }
+        let menu = NSMenu()
+        let header = NSMenuItem(title: "🔍 \(query)", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+        for r in results {
+            let mi = item(r.title, #selector(playSearchResult(_:)))
+            mi.representedObject = r.id
+            let title = r.title.count > 60 ? r.title.prefix(60) + "…" : r.title
+            let t = NSMutableAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 13)])
+            t.append(NSAttributedString(string: "\n" + r.meta, attributes: [.font: NSFont.menuFont(ofSize: 11),
+                                                                           .foregroundColor: NSColor.secondaryLabelColor]))
+            mi.attributedTitle = t
+            menu.addItem(mi)
+            URLSession.shared.dataTask(with: URL(string: "https://i.ytimg.com/vi/\(r.id)/mqdefault.jpg")!) { data, _, _ in
+                guard let data = data, let img = NSImage(data: data) else { return }
+                img.size = NSSize(width: 96, height: 54)
+                DispatchQueue.main.async { mi.image = img }
+            }.resume()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc func playSearchResult(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        playYouTube(id)
     }
 
     func playlistID(from text: String) -> String? {
@@ -1029,6 +1101,105 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return img
     }
 
+    // MARK: - 업데이트 (GitHub 릴리스에서 새 DockTube.dmg를 받아 바꿔 끼우고 다시 켜요)
+
+    static let repo = "ludin-lee/docktube"
+    var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
+    var autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoUpdate, forKey: "autoUpdate") }
+    }
+    var skippedVersion: String? {   // 자동 확인에서 "나중에" 누른 버전은 다시 안 물어봐요 (수동 확인은 물어봐요)
+        get { UserDefaults.standard.string(forKey: "skippedVersion") }
+        set { UserDefaults.standard.set(newValue, forKey: "skippedVersion") }
+    }
+
+    @objc func toggleAutoUpdate() { autoUpdate.toggle() }
+    @objc func checkForUpdateManually() { checkForUpdate(manual: true) }
+
+    func checkForUpdate(manual: Bool) {
+        let url = URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest")!
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard let json = json, let tag = json["tag_name"] as? String else {
+                    if manual { self.showMessage(T("update_failed")) }
+                    return
+                }
+                let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+                let dmg = (json["assets"] as? [[String: Any]])?
+                    .compactMap { $0["browser_download_url"] as? String }.first { $0.hasSuffix(".dmg") }
+                guard isNewer(latest, than: self.appVersion), let dmgURL = dmg.flatMap(URL.init(string:)) else {
+                    if manual { self.showMessage(T("up_to_date").replacingOccurrences(of: "{v}", with: self.appVersion)) }
+                    return
+                }
+                if !manual && self.skippedVersion == latest { return }
+                self.askToInstall(latest, notes: json["body"] as? String ?? "", dmg: dmgURL,
+                                  page: (json["html_url"] as? String).flatMap(URL.init(string:)))
+            }
+        }.resume()
+    }
+
+    func askToInstall(_ version: String, notes: String, dmg: URL, page: URL?) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = T("update_available").replacingOccurrences(of: "{v}", with: version)
+        alert.informativeText = T("update_info") + (notes.isEmpty ? "" : "\n\n" + String(notes.prefix(600)))
+        alert.addButton(withTitle: T("update_now"))
+        alert.addButton(withTitle: T("later"))
+        guard alert.runModal() == .alertFirstButtonReturn else { skippedVersion = version; return }
+        installUpdate(from: dmg, page: page)
+    }
+
+    // 1) DMG 받기 → 2) 열어서 새 앱을 임시 폴더로 복사 → 3) 앱이 꺼지면 바꿔 끼우고 다시 켜는 스크립트 실행 → 4) 종료
+    func installUpdate(from dmg: URL, page: URL?) {
+        let dest = Bundle.main.bundlePath
+        let fail = { [weak self] in
+            self?.showMessage(T("update_failed"))
+            if let page = page { NSWorkspace.shared.open(page) }
+        }
+        // 응용 프로그램 폴더에 쓸 권한이 없으면 직접 받게 안내
+        guard FileManager.default.isWritableFile(atPath: (dest as NSString).deletingLastPathComponent),
+              FileManager.default.isWritableFile(atPath: dest) else { return fail() }
+
+        URLSession.shared.downloadTask(with: dmg) { file, _, _ in
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("DockTubeUpdate-\(UUID().uuidString)")
+            let dmgPath = tmp.appendingPathComponent("DockTube.dmg").path
+            let mount = tmp.appendingPathComponent("mnt").path
+            let newApp = tmp.appendingPathComponent("DockTube.app").path
+            func run(_ args: [String]) -> Bool {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                p.arguments = args
+                do { try p.run() } catch { return false }
+                p.waitUntilExit()
+                return p.terminationStatus == 0
+            }
+            guard let file = file,
+                  (try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)) != nil,
+                  (try? FileManager.default.moveItem(atPath: file.path, toPath: dmgPath)) != nil,
+                  run(["hdiutil", "attach", dmgPath, "-nobrowse", "-readonly", "-mountpoint", mount]) else {
+                return DispatchQueue.main.async(execute: fail)
+            }
+            let copied = run(["ditto", mount + "/DockTube.app", newApp])
+            _ = run(["hdiutil", "detach", mount, "-quiet"])
+            guard copied else { return DispatchQueue.main.async(execute: fail) }
+
+            // 이 앱이 완전히 꺼질 때까지 기다렸다가 바꿔 끼우고 다시 켜요
+            let script = """
+            while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
+            rm -rf "$2" && ditto "$3" "$2" && xattr -dr com.apple.quarantine "$2" 2>/dev/null
+            open "$2"
+            rm -rf "$4"
+            """
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            p.arguments = ["-c", script, "sh", "\(ProcessInfo.processInfo.processIdentifier)", dest, newApp, tmp.path]
+            do { try p.run() } catch { return DispatchQueue.main.async(execute: fail) }
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }.resume()
+    }
+
     func showMessage(_ text: String) {
         let a = NSAlert()
         a.messageText = text
@@ -1057,6 +1228,48 @@ final class MiniView: NSImageView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
+}
+
+// MARK: - 검색 결과 읽기
+
+struct SearchResult { let id: String, title: String, meta: String }
+
+// 유튜브 검색 페이지 안의 ytInitialData(JSON)에서 영상(videoRenderer)만 순서대로 꺼내요
+func parseSearch(_ html: String) -> [SearchResult] {
+    guard let s = html.range(of: "var ytInitialData = "),
+          let e = html.range(of: ";</script>", range: s.upperBound..<html.endIndex),
+          let data = html[s.upperBound..<e.lowerBound].data(using: .utf8),
+          let json = try? JSONSerialization.jsonObject(with: data) else { return [] }
+    func text(_ x: Any?) -> String? {
+        let d = x as? [String: Any]
+        return d?["simpleText"] as? String ?? (d?["runs"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
+    }
+    var out: [SearchResult] = []
+    func walk(_ x: Any) {
+        if let d = x as? [String: Any] {
+            if let v = d["videoRenderer"] as? [String: Any], let id = v["videoId"] as? String {
+                let meta = [text(v["ownerText"]), text(v["lengthText"])].compactMap { $0 }.joined(separator: " · ")
+                out.append(SearchResult(id: id, title: text(v["title"]) ?? id, meta: meta))
+                return
+            }
+            d.values.forEach(walk)
+        } else if let a = x as? [Any] {
+            a.forEach(walk)
+        }
+    }
+    walk(json)
+    var seen = Set<String>()
+    return out.filter { seen.insert($0.id).inserted }
+}
+
+// "1.10" > "1.9"처럼 숫자로 비교해요
+func isNewer(_ a: String, than b: String) -> Bool {
+    let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+    for i in 0..<max(x.count, y.count) {
+        let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
+        if l != r { return l > r }
+    }
+    return false
 }
 
 // MARK: - 언어
@@ -1112,23 +1325,35 @@ let strings: [String: [String]] = [
     "copy": ["복사", "Copy", "コピー", "拷贝", "Copiar"],
     "paste": ["붙여넣기", "Paste", "ペースト", "粘贴", "Pegar"],
     "select_all": ["전체 선택", "Select All", "すべてを選択", "全选", "Seleccionar todo"],
-    "prompt_title": ["유튜브 링크를 붙여넣으세요", "Paste a YouTube link", "YouTubeのリンクを貼り付けてください", "粘贴 YouTube 链接", "Pega un enlace de YouTube"],
+    "prompt_title": ["유튜브 링크나 검색어를 넣으세요", "Paste a YouTube link or type a search", "YouTubeのリンクか検索ワードを入力してください", "粘贴 YouTube 链接或输入搜索词", "Pega un enlace de YouTube o escribe una búsqueda"],
     "prompt_info": ["Dock 아이콘에서 영상이 재생돼요. 아이콘을 클릭하면 재생/일시정지, 우클릭하면 메뉴가 나와요.",
                     "The video plays inside the Dock icon. Click the icon to play/pause, right-click for the menu.",
                     "動画はDockアイコンの中で再生されます。クリックで再生/一時停止、右クリックでメニューが開きます。",
                     "视频会在程序坞图标中播放。点按图标可播放/暂停，右键点按可打开菜单。",
                     "El video se reproduce dentro del icono del Dock. Haz clic para reproducir/pausar y clic derecho para ver el menú."],
-    "prompt_placeholder": ["영상 또는 재생목록 링크 (…watch?v=… / …playlist?list=…)", "Video or playlist link (…watch?v=… / …playlist?list=…)",
-                           "動画または再生リストのリンク（…watch?v=… / …playlist?list=…）", "视频或播放列表链接（…watch?v=… / …playlist?list=…）",
-                           "Enlace de video o lista (…watch?v=… / …playlist?list=…)"],
+    "prompt_placeholder": ["영상·재생목록 링크 또는 검색어", "Video/playlist link or search words", "動画・再生リストのリンクまたは検索ワード", "视频/播放列表链接或搜索词", "Enlace de video/lista o palabras de búsqueda"],
     "play": ["재생", "Play", "再生", "播放", "Reproducir"],
     "cancel": ["취소", "Cancel", "キャンセル", "取消", "Cancelar"],
-    "bad_link": ["유튜브 링크를 인식하지 못했어요. 주소를 다시 확인해 주세요.", "Couldn't recognize that YouTube link. Please check the address.",
-                 "YouTubeのリンクを認識できませんでした。アドレスを確認してください。", "无法识别该 YouTube 链接，请检查地址。",
-                 "No se reconoció el enlace de YouTube. Revisa la dirección."],
     "seek_title": ["시간 이동", "Jump to Time", "時間を移動", "跳转到时间", "Ir a un momento"],
     "seek_info": ["슬라이더를 옮긴 뒤 이동을 누르세요.", "Move the slider, then click Go.", "スライダーを動かして「移動」を押してください。",
                   "拖动滑块，然后点按“跳转”。", "Mueve el control deslizante y pulsa Ir."],
+    "search": ["🔍 유튜브 검색…", "🔍 Search YouTube…", "🔍 YouTubeを検索…", "🔍 搜索 YouTube…", "🔍 Buscar en YouTube…"],
+    "search_title": ["유튜브 검색", "Search YouTube", "YouTubeを検索", "搜索 YouTube", "Buscar en YouTube"],
+    "search_placeholder": ["검색어", "Search words", "検索ワード", "搜索词", "Palabras de búsqueda"],
+    "search_button": ["검색", "Search", "検索", "搜索", "Buscar"],
+    "no_results": ["검색 결과가 없어요.", "No results found.", "検索結果がありません。", "没有找到结果。", "No se encontraron resultados."],
+    "update_check": ["업데이트 확인…", "Check for Updates…", "アップデートを確認…", "检查更新…", "Buscar actualizaciones…"],
+    "auto_update": ["자동 업데이트", "Automatic Updates", "自動アップデート", "自动更新", "Actualizaciones automáticas"],
+    "update_available": ["새 버전 {v}이(가) 나왔어요", "DockTube {v} is available", "新しいバージョン {v} があります", "DockTube {v} 已推出", "DockTube {v} está disponible"],
+    "update_info": ["업데이트하면 앱이 잠깐 꺼졌다가 새 버전으로 다시 켜져요.", "DockTube will quit briefly and reopen with the new version.",
+                    "アップデートするとアプリが一度終了し、新しいバージョンで再起動します。", "更新时 DockTube 会短暂退出，并以新版本重新打开。",
+                    "DockTube se cerrará un momento y se volverá a abrir con la nueva versión."],
+    "update_now": ["업데이트", "Update", "アップデート", "更新", "Actualizar"],
+    "later": ["나중에", "Later", "後で", "以后", "Más tarde"],
+    "up_to_date": ["최신 버전이에요 (v{v})", "You're up to date (v{v})", "最新バージョンです（v{v}）", "已是最新版本（v{v}）", "Tienes la última versión (v{v})"],
+    "update_failed": ["업데이트하지 못했어요. 릴리스 페이지에서 직접 받아 주세요.", "Couldn't update automatically. Please download it from the release page.",
+                      "アップデートできませんでした。リリースページから直接ダウンロードしてください。", "无法自动更新，请从发布页面手动下载。",
+                      "No se pudo actualizar. Descárgala desde la página de versiones."],
     "go": ["이동", "Go", "移動", "跳转", "Ir"],
 ]
 

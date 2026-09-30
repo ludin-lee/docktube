@@ -30,7 +30,7 @@ xattr -dr com.apple.quarantine /Applications/DockTube.app
 
 ## How to use
 
-When the app starts, it asks for a YouTube link. If you already have a YouTube link on your clipboard, it's filled in for you.
+When the app starts, it asks for a YouTube link. If you already have a YouTube link on your clipboard, it's filled in for you. Type anything that isn't a link and DockTube searches YouTube for it.
 
 | Action | Result |
 | --- | --- |
@@ -50,6 +50,7 @@ When the app starts, it asks for a YouTube link. If you already have a YouTube l
 - **Quality** — **Auto**, **Always Best**, **Always 1080p**, or any quality the video offers (e.g. 1080p60, 720p). If a video doesn't have the chosen quality, the best one below it is used. Remembered across restarts
 - **Subtitles** — turn YouTube subtitles on/off (off by default). The player reloads and resumes where you were. Subtitles in the app's language are preferred when available
 - **Open YouTube Link…**
+- **🔍 Search YouTube…** — search without leaving the Dock. Results appear as a menu with thumbnails, titles, channels and lengths; click one to play it
 - **Watch Shorts Feed** — scroll through YouTube Shorts like in a browser (see *Shorts mode* below)
 - **Sign In to YouTube… / Sign Out of YouTube** — shows the Google sign-in page. Once signed in, Shorts are personalized for your account. Signing out clears all cookies and site data stored by the app
 - **Open Video File…** — local files such as mp4 and mov
@@ -57,6 +58,8 @@ When the app starts, it asks for a YouTube link. If you already have a YouTube l
 - **Mini Player** — a small widescreen player just above the Dock (see below)
 - **Show Video Window** — reveals the hidden video window. Closing it with the red button hides it again
 - **🌐 Language** — Auto (System Language), 한국어, English, 日本語, 中文, Español. Remembered across restarts
+- **Check for Updates…** — checks GitHub for a newer version right away (shows your current version)
+- **Automatic Updates** — on by default (see *Updates* below)
 
 ### Mini player
 
@@ -87,6 +90,16 @@ Paste a `https://www.youtube.com/shorts/...` link or choose **Watch Shorts Feed*
 - **Autoplay Next Short** (on by default) — moves to the next Short when one ends. Turn it off to loop a single Short. Remembered across restarts.
 - Sign in once with **Sign In to YouTube…** and you stay signed in across restarts, with recommendations based on your account.
 - Play/pause, mute and seeking work; the quality, subtitle and playlist menus are hidden in this mode.
+
+## Updates
+
+DockTube updates itself from this repository's [GitHub Releases](https://github.com/ludin-lee/docktube/releases).
+
+- **Automatic Updates** (on by default) — checks 10 seconds after launch and once a day. When a new version is out, it asks **Update** / **Later**. Choosing *Later* skips that version for automatic checks.
+- **Check for Updates…** — checks right away.
+- Choosing **Update** downloads the new `DockTube.dmg`, replaces the app, and reopens it — the app quits for a moment, so playback stops.
+- If DockTube can't replace itself (for example, no write permission to its folder), it opens the release page so you can download it manually.
+- Versions 1.1 and earlier don't have the updater, so update to 1.2 manually once.
 
 ## Building from source (for developers)
 
