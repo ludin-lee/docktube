@@ -6,6 +6,10 @@ A tiny macOS app that plays YouTube videos (or your own video files) **right ins
 
 ![DockTube icon](AppIcon.png)
 
+If you enjoy DockTube, a coffee keeps it going ☕
+
+<a href="https://buymeacoffee.com/ludin"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45"></a>
+
 ## Download & Install
 
 1. **[Download DockTube.dmg](https://github.com/ludin-lee/docktube/releases/latest/download/DockTube.dmg)**

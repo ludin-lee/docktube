@@ -6,6 +6,10 @@
 
 ![DockTube 아이콘](AppIcon.png)
 
+DockTube가 마음에 드셨다면 커피 한 잔으로 응원해 주세요 ☕
+
+<a href="https://buymeacoffee.com/ludin"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45"></a>
+
 ## 다운로드 & 설치
 
 1. **[DockTube.dmg 다운로드](https://github.com/ludin-lee/docktube/releases/latest/download/DockTube.dmg)**
