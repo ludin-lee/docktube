@@ -427,7 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         hideVideoWindow()
     }
 
-    // 창은 거의 투명하게 화면 구석에 띄워 둬요. (완전히 숨기면 macOS가 화면 그리기를 멈춰서요)
+    // 창은 거의 투명하게, 화면 왼쪽 밖으로 1px만 걸치게 띄워 둬요. (완전히 숨기면 macOS가 화면 그리기를 멈춰서요)
     func hideVideoWindow() {
         windowShown = false
         window.alphaValue = 0.01
@@ -436,7 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         if let vf = NSScreen.main?.visibleFrame {
-            window.setFrameOrigin(NSPoint(x: vf.minX, y: vf.minY))
+            window.setFrameOrigin(NSPoint(x: vf.minX - window.frame.width + 1, y: vf.minY))
         }
         window.orderFrontRegardless()
     }
